@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Professional Lottery DApp</title>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.6.2/dist/ethers.umd.min.js"></script>
+
+<style>
+body{
+    margin:0;
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg,#141e30,#243b55);
+    color:white;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+
+.container{
+    background:#1f2937;
+    padding:30px;
+    border-radius:15px;
+    width:420px;
+    box-shadow:0 0 20px rgba(0,0,0,0.5);
+}
+
+h1{
+    text-align:center;
+    margin-bottom:20px;
+}
+
+button{
+    width:100%;
+    padding:12px;
+    margin-top:10px;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:16px;
+    font-weight:bold;
+}
+
+.connect{ background:#2563eb; color:white; }
+.enter{ background:#16a34a; color:white; }
+.pick{ background:#dc2626; color:white; }
+
+.info{
+    margin-top:15px;
+    background:#111827;
+    padding:12px;
+    border-radius:8px;
+    font-size:14px;
+}
+
+.small{
+    font-size:13px;
+    opacity:0.8;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+<h1>🎲 Lottery DApp</h1>
+
+<button class="connect" onclick="connectWallet()">Connect Wallet</button>
+<button class="enter" onclick="enterLottery()">Enter Lottery (0.01 ETH)</button>
+<button class="pick" onclick="pickWinner()">Pick Winner (Owner)</button>
+
+<div class="info">
+<div>Contract Balance: <span id="balance">0</span> ETH</div>
+<div class="small">Connected: <span id="account">Not connected</span></div>
+<div class="small">Lottery Round: <span id="lotteryId">-</span></div>
+</div>
+
+</div>
+
+<script>
+
+const contractAddress = "0xdA4225DAd78f6901c0659e85a3BD67B10D844588";
+
+const abi = [
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_entryFee",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "player",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "lotteryId",
+				"type": "uint256"
+			}
+		],
+		"name": "PlayerEntered",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "winner",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "lotteryId",
+				"type": "uint256"
+			}
+		],
+		"name": "WinnerPicked",
+		"type": "event"
+	},
+	{
+		"inputs": [],
+		"name": "enterLottery",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "entryFee",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getBalance",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getPlayers",
+		"outputs": [
+			{
+				"internalType": "address[]",
+				"name": "",
+				"type": "address[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "lotteryId",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "owner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "pickWinner",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	}
+];
+
+let provider;
+let signer;
+let contract;
+
+async function connectWallet(){
+    if(window.ethereum){
+        provider = new ethers.BrowserProvider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        signer = await provider.getSigner();
+        contract = new ethers.Contract(contractAddress, abi, signer);
+
+        const account = await signer.getAddress();
+        document.getElementById("account").innerText = account;
+
+        updateData();
+    } else {
+        alert("Install MetaMask");
+    }
+}
+
+async function enterLottery(){
+    try{
+        const tx = await contract.enterLottery({
+            value: ethers.parseEther("0.01")
+        });
+        await tx.wait();
+        alert("Successfully Entered!");
+        updateData();
+    } catch(err){
+        alert(err.reason || "Transaction Failed");
+    }
+}
+
+async function pickWinner(){
+    try{
+        const tx = await contract.pickWinner();
+        await tx.wait();
+        alert("Winner Picked!");
+        updateData();
+    } catch(err){
+        alert("Only owner can pick winner");
+    }
+}
+
+async function updateData(){
+    const balance = await contract.getBalance();
+    document.getElementById("balance").innerText =
+        ethers.formatEther(balance);
+
+    const lotteryId = await contract.lotteryId();
+    document.getElementById("lotteryId").innerText = lotteryId;
+}
+
+</script>
+
+</body>
+</html>
